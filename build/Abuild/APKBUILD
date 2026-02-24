@@ -1,0 +1,76 @@
+# Alpine-Maintainer: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: Felix Xing <fxing@qnx.com>
+pkgname=qt6-mqtt
+pkgver=6.10.0
+pkgrel=0
+pkgdesc="Qt module that Provides MQTT communication"
+url="https://qt.io/"
+arch="all"
+license="LGPL-2.1-only AND LGPL-3.0-only AND GPL-3.0-only AND Qt-GPL-exception-1.0"
+depends="
+    libc++
+    qnx-io-sock
+    qt6-base
+    qt6-websockets
+    "
+depends_dev="
+    qt6-base-dev
+    qt6-base-private-dev
+    qt6-declarative-dev
+    qt6-websockets-dev
+    "
+makedepends="$depends_dev
+    cmake
+    perl
+    ninja
+    "
+subpackages="$pkgname-dev"
+builddir="$srcdir/qtmqtt-${pkgver/_/-}"
+# the test suite of this package requires a running MQTT-server
+options="!check"
+source="$pkgname-$pkgver.tar.gz::https://github.com/qt/qtmqtt/archive/refs/tags/v${pkgver/_/-}.tar.gz"
+
+build() {
+    # It's qcc here, but compiled with clang on the selfhosted system
+    if [[ $CARCH == "x86_64" ]]; then
+        _triplet="qnx-x86-64-qcc"
+    elif [[ $CARCH == "aarch64" ]]; then
+        _triplet="qnx-aarch64le-qcc"
+    else
+        die "$CARCH not supported"
+    fi
+
+    _warn="-Wno-character-conversion"
+
+    export CC=clang
+    export CXX=clang++
+    export CFLAGS="$_warn"
+    export CXXFLAGS="$_warn"
+    export LDFLAGS="-lsocket"
+    export LD_LIBRARY_PATH="$builddir/build/lib:$LD_LIBRARY_PATH"
+
+    cmake -B build -G Ninja \
+        -DCMAKE_SKIP_RPATH=ON \
+        -DQT_QMAKE_TARGET_MKSPEC=$_triplet \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_MESSAGE_LOG_LEVEL=STATUS \
+        -DFEATURE_pkg_config=ON
+
+    cmake --build build --parallel
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+}
+
+dev() {
+    default_dev
+
+    amove usr/lib/qt6/sbom
+}
+
+sha512sums="
+30b774317f58e44f2cbe27fa2e98e7cb224c54ef31456f5b55cbc8634c030c13fefaeed91657b9282c2cbd086bae89a405d749046306896cb2e90ec4510c41fc  qt6-mqtt-6.10.0.tar.gz
+"
